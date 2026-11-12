@@ -1,0 +1,32 @@
+name: repro
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stages:
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [numba, sklearn, lightgbm, combined]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install libomp and the packages under test
+        run: |
+          brew install libomp
+          python -m pip install numpy scipy numba scikit-learn lightgbm
+      - name: Show which OpenMP runtimes are linked
+        run: python diag_libs.py
+      - name: Run stage
+        env:
+          DYLD_LIBRARY_PATH: /opt/homebrew/opt/libomp/lib
+          PYTHONUNBUFFERED: "1"
+        run: timeout 600 python repro.py "${{ matrix.stage }}"
