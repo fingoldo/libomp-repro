@@ -29,4 +29,5 @@ jobs:
         env:
           DYLD_LIBRARY_PATH: /opt/homebrew/opt/libomp/lib
           PYTHONUNBUFFERED: "1"
-        run: timeout 600 python repro.py "${{ matrix.stage }}"
+        # macOS runners have no GNU `timeout`; the job-level timeout-minutes above bounds a hang.
+        run: python repro.py "${{ matrix.stage }}"
