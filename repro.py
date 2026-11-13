@@ -36,8 +36,9 @@ def _numba_stage() -> None:
             s += a[i]
         return s
 
-    print("numba threading layer:", numba.threading_layer(), flush=True)
+    # threading_layer() raises until a parallel kernel has run, so run the kernel first.
     print("numba total:", total(np.ones(1_000_000)), flush=True)
+    print("numba threading layer:", numba.threading_layer(), flush=True)
 
 
 def _sklearn_stage() -> None:
