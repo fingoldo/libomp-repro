@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stage: [numba, sklearn, lightgbm, combined]
+        stage: [numba, sklearn, lightgbm, combined, torch, torch_lgb, lgb_torch, everything]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,7 +22,7 @@ jobs:
       - name: Install libomp and the packages under test
         run: |
           brew install libomp
-          python -m pip install numpy scipy numba scikit-learn lightgbm
+          python -m pip install numpy scipy numba scikit-learn lightgbm torch xgboost catboost polars pyarrow
       - name: Show which OpenMP runtimes are linked
         run: python diag_libs.py
       - name: Run stage

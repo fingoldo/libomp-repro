@@ -10,6 +10,10 @@ Stages, in increasing order of what they load into one process:
     sklearn    sklearn's OpenMP-backed histogram gradient boosting
     lightgbm   LightGBM Dataset construction plus a short train
     combined   numba kernel, then sklearn, then LightGBM, in one process
+    torch      a torch matmul and an autograd step (torch wheels bundle their own libomp)
+    torch_lgb  torch first, then LightGBM: the order that puts two OpenMP runtimes in one process
+    lgb_torch  LightGBM first, then torch
+    everything torch, xgboost, catboost, polars, pyarrow, numba, sklearn, then LightGBM: the library set of an mlframe process
 
 A stage that dies with a signal (exit code 139, "Fatal Python error: Segmentation fault",
 "OMP: Error #179", or "Concurrent access has been detected") has reproduced the crash.
@@ -67,6 +71,29 @@ def _lightgbm_stage() -> None:
     print("lightgbm dataset + train ok", flush=True)
 
 
+def _torch_stage() -> None:
+    """Run a torch matmul and one autograd step, which start torch's OpenMP pool."""
+    import torch
+
+    a = torch.randn(512, 512, requires_grad=True)
+    (a @ a).sum().backward()
+    print("torch matmul + backward ok, threads:", torch.get_num_threads(), flush=True)
+
+
+def _everything_stage() -> None:
+    """Import the whole library set of an mlframe training process and exercise each OpenMP user once."""
+    import catboost
+    import polars
+    import pyarrow
+    import xgboost
+
+    print("imported:", catboost.__version__, polars.__version__, pyarrow.__version__, xgboost.__version__, flush=True)
+    _torch_stage()
+    _numba_stage()
+    _sklearn_stage()
+    _lightgbm_stage()
+
+
 def main(stage: str) -> int:
     """Run the named stage and return a process exit code."""
     stages = {
@@ -74,6 +101,10 @@ def main(stage: str) -> int:
         "sklearn": [_sklearn_stage],
         "lightgbm": [_lightgbm_stage],
         "combined": [_numba_stage, _sklearn_stage, _lightgbm_stage],
+        "torch": [_torch_stage],
+        "torch_lgb": [_torch_stage, _lightgbm_stage],
+        "lgb_torch": [_lightgbm_stage, _torch_stage],
+        "everything": [_everything_stage],
     }
     if stage not in stages:
         print(f"unknown stage {stage!r}; choose from {sorted(stages)}", file=sys.stderr)
