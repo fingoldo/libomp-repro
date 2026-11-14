@@ -28,6 +28,8 @@ jobs:
       - name: Run stage
         env:
           DYLD_LIBRARY_PATH: /opt/homebrew/opt/libomp/lib
+          # mlframe's macOS CI sets exactly this pair: numba's OpenMP threading layer on the Homebrew libomp. The default layer (workqueue) never loads it.
+          NUMBA_THREADING_LAYER: omp
           PYTHONUNBUFFERED: "1"
         # macOS runners have no GNU `timeout`; the job-level timeout-minutes above bounds a hang.
         run: python repro.py "${{ matrix.stage }}"
