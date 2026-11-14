@@ -10,6 +10,8 @@ Stages, in increasing order of what they load into one process:
     sklearn    sklearn's OpenMP-backed histogram gradient boosting
     lightgbm   LightGBM Dataset construction plus a short train
     combined   numba kernel, then sklearn, then LightGBM, in one process
+    lgb_sklearn LightGBM's sklearn API on a pandas frame with a categorical column
+    numba_lgb  numba kernel, then LightGBM's sklearn API, both with their default thread pools
     torch      a torch matmul and an autograd step (torch wheels bundle their own libomp)
     torch_lgb  torch first, then LightGBM: the order that puts two OpenMP runtimes in one process
     lgb_torch  LightGBM first, then torch
@@ -67,8 +69,23 @@ def _lightgbm_stage() -> None:
     y = X[:, 0] + rng.normal(scale=0.1, size=5000)
     ds = lgb.Dataset(X, label=y, free_raw_data=False)
     ds.construct()
-    lgb.train({"verbose": -1, "num_threads": 1}, ds, num_boost_round=5)
+    # Default thread count: that starts LightGBM's OpenMP pool, which a single-thread run never does.
+    lgb.train({"verbose": -1}, ds, num_boost_round=5)
     print("lightgbm dataset + train ok", flush=True)
+
+
+def _lightgbm_sklearn_stage() -> None:
+    """Fit LightGBM through its sklearn API on a pandas frame with a categorical column, with the default thread count."""
+    import lightgbm as lgb
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(2)
+    n = 20000
+    X = pd.DataFrame({"a": rng.normal(size=n), "b": rng.normal(size=n), "c": pd.Categorical(rng.integers(0, 8, size=n))})
+    y = X["a"] + rng.normal(scale=0.1, size=n)
+    lgb.LGBMRegressor(n_estimators=20, verbose=-1).fit(X, y)
+    print("lightgbm sklearn api + categorical ok", flush=True)
 
 
 def _torch_stage() -> None:
@@ -92,6 +109,7 @@ def _everything_stage() -> None:
     _numba_stage()
     _sklearn_stage()
     _lightgbm_stage()
+    _lightgbm_sklearn_stage()
 
 
 def main(stage: str) -> int:
@@ -101,6 +119,8 @@ def main(stage: str) -> int:
         "sklearn": [_sklearn_stage],
         "lightgbm": [_lightgbm_stage],
         "combined": [_numba_stage, _sklearn_stage, _lightgbm_stage],
+        "lgb_sklearn": [_lightgbm_sklearn_stage],
+        "numba_lgb": [_numba_stage, _lightgbm_sklearn_stage],
         "torch": [_torch_stage],
         "torch_lgb": [_torch_stage, _lightgbm_stage],
         "lgb_torch": [_lightgbm_stage, _torch_stage],
